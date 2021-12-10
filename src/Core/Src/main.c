@@ -32,25 +32,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
-// ---> usb_endp.c
-extern uint8_t packet_send;
-// <--- usb_endp.c
-/* Private variables ---------------------------------------------------------*/
-#define ADC_BUF_SIZE    1024 // ADC buffer size
-#define ADC_BUF_MASK ADC_BUF_SIZE-1
-#define OVS_COUNT       8   // Oversampling count
-#define TIM_PERIOD (72000000/(32000*OVS_COUNT))-1//72000000/(256000)-1 = 280
-#define ADC_INJECTED_OFFSET 1900
-#define USB_SEND_PACKET_SIZE 64
-#define SILENCE_LEVEL   200
-uint8_t adc_buffer[ADC_BUF_SIZE];
-uint32_t usb_buf_pos = 0;
-uint32_t adc_buf_pos = 0;
-volatile int32_t ovs_acc = 0;
-volatile uint16_t ovs_cnt = 0;
-volatile int16_t adc_val;
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -88,9 +69,7 @@ static void MX_TIM4_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  
-  uint32_t count = 0;
-  
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -116,9 +95,6 @@ int main(void)
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
 
-	//uint16_t temp; 
-	//while (bDeviceState != CONFIGURED){;}
-    
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -128,40 +104,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-/*
-   	if (packet_send) {//EP1_IN_Callback
-    		if (_GetENDPOINT(ENDP1) & EP_DTOG_RX) {//
-        		UserToPMABufferCopy(&adc_buffer[usb_buf_pos],ENDP1_BUF0Addr,USB_SEND_PACKET_SIZE);
-        		SetEPDblBuf0Count(ENDP1,EP_DBUF_IN,USB_SEND_PACKET_SIZE);
-   		}
-					else {
-        		UserToPMABufferCopy(&adc_buffer[usb_buf_pos],ENDP1_BUF1Addr,USB_SEND_PACKET_SIZE);
-        		SetEPDblBuf1Count(ENDP1,EP_DBUF_IN,USB_SEND_PACKET_SIZE);
-    		}
-    		FreeUserBuffer(ENDP1,EP_DBUF_IN); // Toggles EP_DTOG_RX
-    		SetEPTxValid(ENDP1);
-    		packet_send = 0;
-
-    		usb_buf_pos += USB_SEND_PACKET_SIZE;//wMaxPacketSize: 64 bytes per packet
-    		if (usb_buf_pos > ADC_BUF_SIZE - USB_SEND_PACKET_SIZE) usb_buf_pos = 0;
-    	}
-		 if(adc_buf_pos > usb_buf_pos){
-			  temp = adc_buf_pos - usb_buf_pos;
-			  if(temp>512)TIM4->ARR = TIM_PERIOD + 1;
-		    else TIM4->ARR = TIM_PERIOD;
-		 }
-
-    if(adc_val > SILENCE_LEVEL) GPIOC->ODR &= ~GPIO_ODR_ODR13;
-    else GPIOC->ODR |= GPIO_ODR_ODR13;
-    */
-
-    if(count > 3 * 1e6) {
-      if(GPIOC->IDR & GPIO_IDR_IDR13) GPIOC->ODR &= ~GPIO_ODR_ODR13;
-      else GPIOC->ODR |= GPIO_ODR_ODR13;
-      count = 0;
-    }
-    
-    count++;
   }
   /* USER CODE END 3 */
 }
