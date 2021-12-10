@@ -32,6 +32,25 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
+// ---> usb_endp.c
+extern uint8_t packet_send;
+// <--- usb_endp.c
+/* Private variables ---------------------------------------------------------*/
+#define ADC_BUF_SIZE    1024 // ADC buffer size
+#define ADC_BUF_MASK ADC_BUF_SIZE-1
+#define OVS_COUNT       8   // Oversampling count
+#define TIM_PERIOD (72000000/(32000*OVS_COUNT))-1//72000000/(256000)-1 = 280
+#define ADC_INJECTED_OFFSET 1900
+#define USB_SEND_PACKET_SIZE 64
+#define SILENCE_LEVEL   200
+uint8_t adc_buffer[ADC_BUF_SIZE];
+uint32_t usb_buf_pos = 0;
+uint32_t adc_buf_pos = 0;
+volatile int32_t ovs_acc = 0;
+volatile uint16_t ovs_cnt = 0;
+volatile int16_t adc_val;
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -42,6 +61,8 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 
+TIM_HandleTypeDef htim4;
+
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -50,6 +71,7 @@ ADC_HandleTypeDef hadc1;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -66,7 +88,9 @@ static void MX_ADC1_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+  
+  uint32_t count = 0;
+  
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -89,8 +113,12 @@ int main(void)
   MX_GPIO_Init();
   MX_ADC1_Init();
   MX_USB_DEVICE_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
 
+	//uint16_t temp; 
+	//while (bDeviceState != CONFIGURED){;}
+    
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -100,6 +128,40 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+/*
+   	if (packet_send) {//EP1_IN_Callback
+    		if (_GetENDPOINT(ENDP1) & EP_DTOG_RX) {//
+        		UserToPMABufferCopy(&adc_buffer[usb_buf_pos],ENDP1_BUF0Addr,USB_SEND_PACKET_SIZE);
+        		SetEPDblBuf0Count(ENDP1,EP_DBUF_IN,USB_SEND_PACKET_SIZE);
+   		}
+					else {
+        		UserToPMABufferCopy(&adc_buffer[usb_buf_pos],ENDP1_BUF1Addr,USB_SEND_PACKET_SIZE);
+        		SetEPDblBuf1Count(ENDP1,EP_DBUF_IN,USB_SEND_PACKET_SIZE);
+    		}
+    		FreeUserBuffer(ENDP1,EP_DBUF_IN); // Toggles EP_DTOG_RX
+    		SetEPTxValid(ENDP1);
+    		packet_send = 0;
+
+    		usb_buf_pos += USB_SEND_PACKET_SIZE;//wMaxPacketSize: 64 bytes per packet
+    		if (usb_buf_pos > ADC_BUF_SIZE - USB_SEND_PACKET_SIZE) usb_buf_pos = 0;
+    	}
+		 if(adc_buf_pos > usb_buf_pos){
+			  temp = adc_buf_pos - usb_buf_pos;
+			  if(temp>512)TIM4->ARR = TIM_PERIOD + 1;
+		    else TIM4->ARR = TIM_PERIOD;
+		 }
+
+    if(adc_val > SILENCE_LEVEL) GPIOC->ODR &= ~GPIO_ODR_ODR13;
+    else GPIOC->ODR |= GPIO_ODR_ODR13;
+    */
+
+    if(count > 3 * 1e6) {
+      if(GPIOC->IDR & GPIO_IDR_IDR13) GPIOC->ODR &= ~GPIO_ODR_ODR13;
+      else GPIOC->ODR |= GPIO_ODR_ODR13;
+      count = 0;
+    }
+    
+    count++;
   }
   /* USER CODE END 3 */
 }
@@ -173,7 +235,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
   hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
-  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T4_CC4;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc1.Init.NbrOfConversion = 1;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
@@ -184,7 +246,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_8;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_13CYCLES_5;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -196,17 +258,74 @@ static void MX_ADC1_Init(void)
 }
 
 /**
+  * @brief TIM4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM4_Init(void)
+{
+
+  /* USER CODE BEGIN TIM4_Init 0 */
+
+  /* USER CODE END TIM4_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM4_Init 1 */
+
+  /* USER CODE END TIM4_Init 1 */
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 0;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 280;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM4_Init 2 */
+
+  /* USER CODE END TIM4_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(Led_GPIO_Port, Led_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : Led_Pin */
+  GPIO_InitStruct.Pin = Led_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(Led_GPIO_Port, &GPIO_InitStruct);
 
 }
 
