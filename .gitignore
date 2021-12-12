@@ -2,3 +2,4 @@ src/.*
 src/Debug/
 src/Drivers/
 .vscode/
+Release/
