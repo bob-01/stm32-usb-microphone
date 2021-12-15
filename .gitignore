@@ -3,3 +3,5 @@ src/Debug/
 src/Drivers/
 .vscode/
 Release/
+Middlewares/
+USB_DEVICE/
